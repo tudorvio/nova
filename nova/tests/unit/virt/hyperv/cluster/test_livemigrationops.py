@@ -27,7 +27,7 @@ class LiveMigrationOpsTestCase(test_base.HyperVBaseTestCase):
     @mock.patch('nova.virt.hyperv.cluster.clusterutils.ClusterUtils')
     def setUp(self, mock_clusterutils):
         super(LiveMigrationOpsTestCase, self).setUp()
-        self.context = 'fake_context'
+        self.context = mock.sentinel.context
         self._livemigrops = livemigrationops.ClusterLiveMigrationOps()
         self._livemigrops._livemigrutils = mock.MagicMock()
         self._livemigrops._clustutils = mock.MagicMock()
@@ -37,7 +37,7 @@ class LiveMigrationOpsTestCase(test_base.HyperVBaseTestCase):
     def _test_live_migration(self, mock_get_vm_dvd_paths,
                              mock_copy_logs, side_effect):
         mock_instance = fake_instance.fake_instance_obj(self.context)
-        mock_post = mock.MagicMock()
+        mock_post_method = mock.MagicMock()
         mock_recover = mock.MagicMock()
         fake_dest = mock.sentinel.DESTINATION
         self._livemigrops._livemigrutils.live_migrate_vm.side_effect = [
@@ -46,14 +46,14 @@ class LiveMigrationOpsTestCase(test_base.HyperVBaseTestCase):
             self.assertRaises(vmutils.HyperVException,
                               self._livemigrops.live_migration,
                               self.context, mock_instance, fake_dest,
-                              mock_post, mock_recover, False, None)
+                              mock_post_method, mock_recover, False, None)
             mock_recover.assert_called_once_with(self.context, mock_instance,
                                                  fake_dest, False)
         else:
             self._livemigrops.live_migration(context=self.context,
                                              instance_ref=mock_instance,
                                              dest=fake_dest,
-                                             post_method=mock_post,
+                                             post_method=mock_post_method,
                                              recover_method=mock_recover)
 
             mock_copy_logs.assert_called_once_with(mock_instance.name,
@@ -61,8 +61,8 @@ class LiveMigrationOpsTestCase(test_base.HyperVBaseTestCase):
             mock_live_migr = self._livemigrops._livemigrutils.live_migrate_vm
             mock_live_migr.assert_called_once_with(mock_instance.name,
                                                    fake_dest)
-            mock_post.assert_called_once_with(self.context, mock_instance,
-                                              fake_dest, False)
+            mock_post_method.assert_called_once_with(self.context, 
+                mock_instance, fake_dest, False)
 
     def test_live_migration(self):
         self._test_live_migration(side_effect=None)
@@ -71,7 +71,7 @@ class LiveMigrationOpsTestCase(test_base.HyperVBaseTestCase):
         self._test_live_migration(side_effect=vmutils.HyperVException)
 
     @mock.patch('nova.virt.hyperv.livemigrationops.LiveMigrationOps.'
-                'live_migration')
+                       'live_migration')
     def test_live_migration_unclustered_dest(self,
                                              mock_parent_live_migration):
         mock_instance = fake_instance.fake_instance_obj(self.context)
@@ -111,7 +111,6 @@ class LiveMigrationOpsTestCase(test_base.HyperVBaseTestCase):
         mock_post.assert_called_once_with(
             self.context, mock_instance, fake_dest, False)
 
-    
     @mock.patch.object(livemigrationops.ClusterLiveMigrationOps,
                        '_is_instance_clustered')
     @mock.patch('nova.virt.hyperv.livemigrationops.LiveMigrationOps.'
@@ -120,8 +119,8 @@ class LiveMigrationOpsTestCase(test_base.HyperVBaseTestCase):
                                          mock_parent_post_live_migr_at_dest,
                                          mock_is_clustered):
         mock_instance = fake_instance.fake_instance_obj(self.context)
-        mock_network_info = 'fake_info'
-        mock_block_migration = 'fake_block_migration'
+        mock_network_info = mock.sentinel.netinfo
+        mock_block_migration = mock.sentinel.block_migr
         mock_is_clustered.return_value = False
 
         self._livemigrops.post_live_migration_at_destination(

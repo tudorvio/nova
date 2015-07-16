@@ -34,8 +34,10 @@ class ClusterUtilsBaseTestCase(test_base.HyperVBaseTestCase):
     def test_get_cluster_nodes(self):
         result = self._clustutils._get_cluster_nodes()
         clust_assoc = self._clustutils._cluster.associators
-        clust_assoc.assert_called_once_with(self._clustutils._MSCLUSTER_NODE)
-        self.assertEqual(self._cluster.associators.return_value, result)
+        clust_assoc.assert_called_once_with(
+            wmi_result_class=self._clustutils._MSCLUSTER_NODE)
+        self.assertEqual(self._clustutils._cluster.associators.return_value,
+                         result)
 
     def test_get_vm_groups(self):
         mock_res1 = mock.MagicMock()
@@ -51,7 +53,6 @@ class ClusterUtilsBaseTestCase(test_base.HyperVBaseTestCase):
 
 
 class ClusterUtilsTestCase(test_base.HyperVBaseTestCase):
-    _FAKE_INSTANCE_NAME = 'fake_instance_name'
 
     @mock.patch.object(clusterutils.ClusterUtils, '_init_hyperv_conn')
     def setUp(self, mock_init_conn):
@@ -62,7 +63,7 @@ class ClusterUtilsTestCase(test_base.HyperVBaseTestCase):
     @mock.patch.object(clusterutils.ClusterUtils, '_lookup_vm_group')
     def test_lookup_group_check_exception(self, mock_lookup_vm_group):
         mock_lookup_vm_group.return_value = None
-        fake_name = 'fake_name'
+        fake_name = mock.sentinel.name
 
         self.assertRaises(exception.NotFound,
                           self._clustutils._lookup_vm_group_check,
@@ -72,18 +73,18 @@ class ClusterUtilsTestCase(test_base.HyperVBaseTestCase):
 
     @mock.patch.object(clusterutils.ClusterUtils, '_lookup_vm_group')
     def test_lookup_group_check_noexc(self, mock_lookup_vm_group):
-        mock_lookup_vm_group.return_value = 'fake_VM'
-        fake_name = 'fake_name'
+        mock_lookup_vm_group.return_value = mock.sentinel.vm_group
+        fake_name = mock.sentinel.name
 
         result = self._clustutils._lookup_vm_group_check(fake_name)
 
         self._clustutils._lookup_vm_group.assert_called_once_with(fake_name)
-        self.assertEquals(result, mock_lookup_vm_group.return_value)
+        self.assertEquals(mock_lookup_vm_group.return_value, result)
 
     @mock.patch.object(clusterutils.ClusterUtils, '_lookup_res')
     def test_lookup_vm_group(self, mock_lookup_res):
-        mock_lookup_res.return_value = 'fake result'
-        fake_vm_name = 'fake_name'
+        mock_lookup_res.return_value = mock.sentinel.result
+        fake_vm_name = mock.sentinel.vm_name
 
         result = self._clustutils._lookup_vm_group(fake_vm_name)
 
@@ -95,7 +96,7 @@ class ClusterUtilsTestCase(test_base.HyperVBaseTestCase):
 
     @mock.patch.object(clusterutils.ClusterUtils, '_lookup_vm')
     def test_lookup_vm_check_exc(self, mock_lookup_vm):
-        fake_name = 'fake name'
+        fake_name = mock.sentinel.name
         mock_lookup_vm.return_value = None
 
         self.assertRaises(exception.NotFound,
@@ -105,24 +106,19 @@ class ClusterUtilsTestCase(test_base.HyperVBaseTestCase):
 
     @mock.patch.object(clusterutils.ClusterUtils, '_lookup_vm')
     def test_lookup_vm_check_noexc(self, mock_lookup_vm):
-        fake_name = 'fake name'
-        mock_lookup_vm.return_value = 'fake vm'
+        fake_name = mock.sentinel.name
+        mock_lookup_vm.return_value = mock.sentinel.result
 
         result = self._clustutils._lookup_vm_check(fake_name)
 
-        self.assertEquals(result, mock_lookup_vm.return_value)
+        self.assertEquals(mock_lookup_vm.return_value, result)
 
     def _test_lookup_res(self, rsrc_count):
         mock_resource_src = mock.Mock()
         mock_resource_src.return_value = [mock.sentinel.resource] * rsrc_count
-        fake_name = 'fake name'
+        fake_name = mock.sentinel.name
 
-        if rsrc_count == 0:
-            result = self._clustutils._lookup_res(mock_resource_src,
-                                                  fake_name)
-            self.assertEquals(None, result)
-
-        elif rsrc_count > 1:
+        if rsrc_count > 1:
             self.assertRaises(vmutils.HyperVException,
                               self._clustutils._lookup_res,
                               mock_resource_src,
@@ -131,30 +127,34 @@ class ClusterUtilsTestCase(test_base.HyperVBaseTestCase):
         else:
             result = self._clustutils._lookup_res(mock_resource_src,
                                                   fake_name)
-            self.assertEquals(mock_resource_src.return_value[0],
-                              result)
+            if rsrc_count == 0:
+                self.assertEquals(None, result)
+
+            else:
+                self.assertEquals(mock_resource_src.return_value[0],
+                                  result)
+
         mock_resource_src.assert_called_once_with(Name=fake_name)
 
-    def test_lookup_res_none(self):
+    def test_lookup_res_not_found(self):
         self._test_lookup_res(0)
 
-    def test_lookup_res_many(self):
+    def test_lookup_res_multiple_found(self):
         self._test_lookup_res(5)
 
-    def test_lookup_res_one(self):
+    def test_lookup_res_found(self):
         self._test_lookup_res(1)
 
-    @mock.patch.object(clusterutils.ClusterUtils, 'get_cluster_node_names')
+    @mock.patch.object(clusterutils.ClusterUtils, '_get_cluster_nodes')
     def test_get_cluster_node_names(self, mock_get_cluster_nodes):
-        res1 = mock.Mock()
-        res2 = mock.Mock()
-        fake_nodes = [res1, res2]
-        expected_result = [res1.Name, res2.Name]
-        mock_get_cluster_nodes.return_value = fake_nodes
+        fake_node_names = [mock.sentinel.node1, mock.sentinel.node2]
+        mock_nodes = [mock.Mock(Name=node_name)
+                      for node_name in fake_node_names]
+        mock_get_cluster_nodes.return_value = mock_nodes
 
         result = self._clustutils.get_cluster_node_names()
 
-        self.assertEquals(expected_result, result)
+        self.assertEquals(fake_node_names, result)
 
     @mock.patch.object(clusterutils.ClusterUtils, '_lookup_vm_group_check')
     def test_get_vm_host(self, mock_lookup_vm_group_check):
@@ -168,57 +168,64 @@ class ClusterUtilsTestCase(test_base.HyperVBaseTestCase):
 
     @mock.patch.object(clusterutils.ClusterUtils, '_lookup_vm_group_check')
     def test_add_vm_to_cluster(self, mock_lookup_vm_group_check):
-        mock_lookup_vm_group_check.return_value = mock.Mock()
-        mock_vm = mock_lookup_vm_group_check()
-        fake_vm_name = 'fake vm name'
+        mock_vm_group = mock_lookup_vm_group_check.return_value
+        fake_vm_name = mock.sentinel.name
         self._clustutils._cluster = mock.Mock()
 
         self._clustutils.add_vm_to_cluster(fake_vm_name)
 
         self._clustutils._cluster.AddVirtualMachine.assert_called_once_with(
             fake_vm_name)
-        self.assertEquals(mock_vm.PersistentState, True)
-        # If the function doesn't return something how do I check the fields?
+        self.assertEquals(mock_vm_group.PersistentState, True)
+        self.assertEquals(mock_vm_group.AutoFailbackType,
+                          self._clustutils._FAILBACK_TRUE)
+        self.assertEquals(mock_vm_group.FailbackWindowStart,
+                          self._clustutils._FAILBACK_WINDOW_MIN)
+        self.assertEquals(mock_vm_group.FailbackWindowEnd,
+                          self._clustutils._FAILBACK_WINDOW_MAX)
+        mock_vm_group.Put_.assert_called_once_with()
 
     @mock.patch.object(clusterutils.ClusterUtils, '_lookup_vm_group')
     def remove_vm_from_cluster(self, mock_lookup_vm_group):
-        mock_lookup_vm_group.return_value = mock.Mock()
-        mock_vm = mock_lookup_vm_group()
-        fake_vm_name = 'fake vm name'
+        mock_vm_group = mock_lookup_vm_group()
+        fake_vm_name = mock.sentinel.name
 
         self._clustutils.remove_vm_from_cluster(fake_vm_name)
 
-        mock_vm.return_value.DestroyGroup.assert_called_once_with(
+        mock_vm_group.return_value.DestroyGroup.assert_called_once_with(
             self._clustutils._DESTROY_GROUP)
 
     @mock.patch.object(clusterutils.ClusterUtils, '_lookup_vm')
     def test_vm_exists(self, mock_lookup_vm):
-        fake_vm_name = 'fake name'
+        fake_vm_name = mock.sentinel.name
+        mock_lookup_vm.return_value = mock.sentinel.vm_inst
 
-        self._clustutils.vm_exists(fake_vm_name)
+        result = self._clustutils.vm_exists(fake_vm_name)
 
         mock_lookup_vm.assert_called_once_with(fake_vm_name)
+        self.assertTrue(result)
 
-    def test_live_migrate_vm(self):
-        fake_vm_name = 'fake_name'
-        fake_new_host = 'fake host'
+    @mock.patch.object(clusterutils.ClusterUtils, '_migrate_vm')
+    def test_live_migrate_vm(self, mock_migrate_vm):
+        fake_vm_name = mock.sentinel.name
+        fake_new_host = mock.sentinel.host
 
         self._clustutils.live_migrate_vm(fake_vm_name, fake_new_host)
 
-        self._clustutils._migrate_vm.assert_called_once_with(
+        mock_migrate_vm.assert_called_once_with(
             fake_vm_name,
             fake_new_host,
             self._clustutils._LIVE_MIGRATION_TYPE)
 
     @mock.patch.object(clusterutils.ClusterUtils, '_lookup_vm_group_check')
     def test_migrate_vm(self, mock_lookup_group_check):
-        fake_new_host = 'fake host'
-        fake_migr_type = 'fake type'
-        mock_lookup_group_check.return_value = mock.Mock()
-        fake_vm = mock_lookup_group_check.return_value
+        fake_vm_group = mock_lookup_group_check.return_value
 
-        self.assertRaises(Exception,
-                          fake_vm.MoveToNewNodeParams,
-                          self._clustutils._IGNORE_LOCKED,
-                          fake_new_host,
-                          [fake_migr_type])
+        fake_vm_group.MoveToNewNodeParams.side_effect = Exception
+        self._clustutils._migrate_vm(mock.sentinel.vm_name, 
+                                     mock.sentinel.new_host,
+                                     mock.sentinel.migr_type)
+
+        fake_vm_group.MoveToNewNodeParams.assert_called_once_with(
+            self._clustutils._IGNORE_LOCKED, mock.sentinel.new_host,
+            [mock.sentinel.migr_type])

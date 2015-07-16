@@ -19,6 +19,7 @@ from nova.virt.hyperv.cluster import migrationops
 from nova.tests.unit.virt.hyperv import test_base
 from nova.virt.hyperv.cluster import clusterutils
 
+
 class ClusterMigrationOpsTestCase(test_base.HyperVBaseTestCase):
 
     @mock.patch.object(clusterutils.ClusterUtils, '_init_hyperv_conn')
@@ -30,9 +31,9 @@ class ClusterMigrationOpsTestCase(test_base.HyperVBaseTestCase):
 
     def test_is_dest_same_host(self):
         get_clustnames = self._clustmigrops._clustutils.get_cluster_node_names
-        fake_host = 'fake_host'
+        fake_host = mock.sentinel.host
         get_clustnames.return_value = [fake_host]
 
         result = self._clustmigrops._is_dest_same_host(fake_host)
 
-        self.assertEquals(result, True)
+        self.assertTrue(result)

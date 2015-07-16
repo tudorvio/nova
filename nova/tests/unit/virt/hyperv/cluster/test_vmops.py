@@ -29,24 +29,25 @@ class ClusterVMOpsTestCase(test_base.HyperVBaseTestCase):
         self._cluster_vmops = vmops.ClusterVMOps()
         self._cluster_vmops._clustutils = mock.Mock()
         self._cluster_vmops._clustutils._conn = mock.MagicMock()
-        self.mock_instance = fake_instance.fake_instance_obj('fake context')
+        self._mock_instance = fake_instance.fake_instance_obj(
+            mock.sentinel.context)
 
     @mock.patch('nova.virt.hyperv.vmops.VMOps.create_instance')
     def test_create_instance(self, mock_parent_create_inst):
-        fake_netinfo = 'fake netinfo'
-        fake_block_info = 'fake block info'
-        fake_root_vhd_path = 'fake vhd info'
-        fake_eph_vhd_path = 'fake eph vhd path'
-        fake_vm_gen = 'fake vm gen'
+        fake_netinfo = mock.sentinel.netinfo
+        fake_block_info = mock.sentinel.block_info
+        fake_root_vhd_path = mock.sentinel.root_vhd_path
+        fake_eph_vhd_path = mock.sentinel.eph_vhd_path
+        fake_vm_gen = mock.sentinel.vm_gen
 
-        self._cluster_vmops.create_instance(instance=self.mock_instance,
+        self._cluster_vmops.create_instance(instance=self._mock_instance,
                                             network_info=fake_netinfo,
                                             block_device_info=fake_block_info,
                                             root_vhd_path=fake_root_vhd_path,
                                             eph_vhd_path=fake_eph_vhd_path,
                                             vm_gen=fake_vm_gen)
 
-        mock_parent_create_inst.assert_called_once_with(self.mock_instance,
+        mock_parent_create_inst.assert_called_once_with(self._mock_instance,
                                                         fake_netinfo,
                                                         fake_block_info,
                                                         fake_root_vhd_path,
@@ -54,13 +55,22 @@ class ClusterVMOpsTestCase(test_base.HyperVBaseTestCase):
                                                         fake_vm_gen)
 
         add_vm_to_cluster = self._cluster_vmops._clustutils.add_vm_to_cluster
-        add_vm_to_cluster.assert_called_once_with(self.mock_instance.name)
+        add_vm_to_cluster.assert_called_once_with(self._mock_instance.name)
 
     @mock.patch('nova.virt.hyperv.vmops.VMOps.destroy')
     def test_destroy(self, mock_parent_destroy):
-        self._cluster_vmops.destroy(self.mock_instance)
+        fake_netinfo = mock.sentinel.netinfo
+        fake_block_device = mock.sentinel.block_device
+        fake_destroy_disks = mock.sentinel.destr_disks
+
+        self._cluster_vmops.destroy(instance=self._mock_instance,
+                                    network_info=fake_netinfo,
+                                    block_device_info=fake_block_device,
+                                    destroy_disks=fake_destroy_disks)
 
         remove_vm = self._cluster_vmops._clustutils.remove_vm_from_cluster
-        remove_vm.assert_called_once_with(self.mock_instance)
-        mock_parent_destroy.assert_called_once_with(self.mock_instance, None,
-                                                    None, True)
+        remove_vm.assert_called_once_with(self._mock_instance.name)
+        mock_parent_destroy.assert_called_once_with(self._mock_instance,
+                                                    fake_netinfo,
+                                                    fake_block_device,
+                                                    fake_destroy_disks)
